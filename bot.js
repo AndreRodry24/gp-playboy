@@ -7,7 +7,7 @@ import { mencionarTodos } from './bot/codigos/enviarRegras.js';
 import { handleAntiLink } from './bot/codigos/antilink.js';
 import { verificarFlood } from './bot/codigos/antiflood.js';
 import { handleBanMessage } from './bot/codigos/banUsuario.js';
-import { mensionarTodos } from './bot/codigos/MensionarMembrosGrupo.js';
+import removerNumEstrangeiros from './bot/codigos/removerNumEstrangeiros.js';
 
 async function connectToWhatsApp() {
     const { version } = await fetchLatestBaileysVersion();
@@ -35,15 +35,16 @@ async function connectToWhatsApp() {
 
     configurarBloqueio(sock);
 
+    // Evento de mensagens recebidas
     sock.ev.on('messages.upsert', async (m) => {
         try {
             const message = m.messages[0];
             if (!message.message || message.key.remoteJid === 'status@broadcast') return;
 
             await removerCaracteres(sock, message);
-            await mensionarTodos(sock, message); // Chama função para mencionar membros
             await mencionarTodos(sock, message); // Chama função para enviar regras
 
+            // Verifica e processa outros eventos
             await handleBanMessage(sock, message); // Verifica comando #ban
             await verificarFlood(sock, message.key.remoteJid, message); // Verifica flood
             await handleAdvertencias(sock, message); // Verifica advertências
@@ -60,8 +61,15 @@ async function connectToWhatsApp() {
         }
     });
 
+    // Evento de atualização de participantes no grupo
     sock.ev.on('group-participants.update', async (update) => {
         const { id: groupId, participants, action } = update;
+
+        // Remove números estrangeiros ao adicionar novos participantes
+        if (action === 'add') {
+            await removerNumEstrangeiros(sock, groupId); // Chama a função ao adicionar participantes
+        }
+
         if (action === 'add') {
             for (let participant of participants) {
                 if (blacklist.includes(participant)) {
