@@ -1,10 +1,7 @@
 export async function removerCaracteres(c, mensagem) {
-    // Obtém o texto da mensagem, seja como 'conversation' ou como legenda de imagem
     const textoMensagem = mensagem.message?.conversation || mensagem.message?.imageMessage?.caption;
 
-    // Verifica se há mensagem de texto ou legenda
     if (textoMensagem) {
-        // Palavras-chave para identificar conteúdo proibido
         const palavrasProibidas = [
             "pedofilia",
             "cp",
@@ -96,11 +93,27 @@ export async function removerCaracteres(c, mensagem) {
             "ATENDIMENTO 24h",
             "VALORES DOS LINKS",
             "GRUPO C🅿️ TELEGRAM EXCLUSIVO",
+            "telegram exclusivo",
             "LINKS NOVOS",
-            "PROMOÇÃO"
+            "PROMOÇÃO",
+            "vendo packs",
+            "plaquinha",
+            "chamada com sexo",
+            "não faço pg",
+            "não faço programa",
+            "apartir",
+            "tabelinha",
+            "chame no privado",
+            "pv liberados para interessados",
+            "Até gozamos",
+            "Chamada de vídeo",
+            "Vip",
+            "vip",
+            "Meu grupo vip",
+            "videos personalizados",
+            "real interesse"
         ];
 
-        // Lista de palavras-chave para identificar regras do grupo
         const regrasDoGrupo = [
             "regras do grupo", "não envie links", "não envie spam", "respeite os administradores", 
             "sem conteúdo ofensivo", "seja educado", "não envie flood", "não envie fake news",
@@ -114,36 +127,46 @@ export async function removerCaracteres(c, mensagem) {
             "não compartilhe conteúdos de exploração", "não faça apologia à violência"
         ];
 
-        // Verifica se a mensagem contém qualquer uma das regras do grupo
-        if (regrasDoGrupo.some(regra => textoMensagem.toLowerCase().includes(regra.toLowerCase()))) {
-            console.log("Mensagem identificada como parte das regras do grupo. Não será removida.");
-            return; // Não faz nada, pois a mensagem é sobre as regras do grupo
+        // ** Limite máximo para análise **
+        const LIMITE_ANALISE = 950;
+
+        if (textoMensagem.length > LIMITE_ANALISE) {
+            try {
+                const usuarioId = mensagem.key.participant || mensagem.key.remoteJid;
+                const grupoId = mensagem.key.remoteJid;
+
+                await c.sendMessage(grupoId, { delete: mensagem.key });
+                await c.groupParticipantsUpdate(grupoId, [usuarioId], 'remove');
+                console.log(`Usuário ${usuarioId} removido por mensagem longa.`);
+            } catch (error) {
+                console.error(`Erro ao remover participante por mensagem longa:`, error);
+            }
+            return;
         }
 
-        // Verifica se a mensagem contém qualquer uma das palavras proibidas
-        if (palavrasProibidas.some(palavra => textoMensagem.toLowerCase().includes(palavra.toLowerCase()))) {
-            console.log("Mensagem identificada com conteúdo proibido. Usuário será removido.");
-            
-            // Obtém o ID do usuário que enviou a mensagem
+        // ** Divisão do texto em blocos menores para busca otimizada **
+        const BLOCOS = 50; // Número de caracteres por bloco
+        const textoDividido = textoMensagem.match(new RegExp(`.{1,${BLOCOS}}`, 'g'));
+
+        // Verifica palavras proibidas nos blocos
+        const mensagemProibida = textoDividido.some(bloco =>
+            palavrasProibidas.some(palavra => bloco.toLowerCase().includes(palavra.toLowerCase()))
+        );
+
+        if (mensagemProibida) {
             const usuarioId = mensagem.key.participant || mensagem.key.remoteJid;
             const grupoId = mensagem.key.remoteJid;
 
-            // Verifica se o usuário é um administrador no grupo
             const metadata = await c.groupMetadata(grupoId);
-            const isAdmin = metadata.participants.some(participant => 
-                participant.id === usuarioId && 
+            const isAdmin = metadata.participants.some(participant =>
+                participant.id === usuarioId &&
                 (participant.admin === 'admin' || participant.admin === 'superadmin')
             );
 
-            // Apenas se o usuário NÃO for administrador
             if (!isAdmin) {
                 try {
-                    // Apaga a mensagem do grupo
                     await c.sendMessage(grupoId, { delete: mensagem.key });
-
-                    // Remove o usuário do grupo
                     await c.groupParticipantsUpdate(grupoId, [usuarioId], 'remove');
-
                     console.log(`Usuário ${usuarioId} removido por conteúdo proibido.`);
                 } catch (error) {
                     console.error(`Erro ao remover participante:`, error);
@@ -153,26 +176,7 @@ export async function removerCaracteres(c, mensagem) {
             }
         }
 
-        // Verifica o comprimento total da mensagem ou legenda
-        const comprimentoTotal = textoMensagem.length;
-
-        // Obtém o ID do usuário que enviou a mensagem
-        const usuarioId = mensagem.key.participant || mensagem.key.remoteJid;
-        const grupoId = mensagem.key.remoteJid;
-
-        // Verifica se a mensagem ou legenda tem mais de 950 caracteres
-        if (comprimentoTotal > 950) {
-            try {
-                // Apaga a mensagem do grupo
-                await c.sendMessage(grupoId, { delete: mensagem.key });
-
-                // Remove o usuário do grupo
-                await c.groupParticipantsUpdate(grupoId, [usuarioId], 'remove');
-
-                console.log(`Usuário ${usuarioId} removido por mensagem longa.`);
-            } catch (error) {
-                console.error(`Erro ao remover participante:`, error);
-            }
-        }
+        // Caso nenhuma palavra proibida seja encontrada, retorna
+        console.log("Mensagem aprovada, sem palavras proibidas.");
     }
 }

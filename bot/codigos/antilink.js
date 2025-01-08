@@ -22,11 +22,15 @@ export const handleAntiLink = async (sock, msg, groupId) => {
 
         let text = '';
 
-        // Verifica se a mensagem contém texto (pode ser uma mensagem simples ou uma extendedTextMessage)
+        // Verifica o tipo de mensagem e obtém o texto ou legenda
         if (msg.message.conversation) {
             text = msg.message.conversation;
         } else if (msg.message.extendedTextMessage) {
             text = msg.message.extendedTextMessage.text;
+        } else if (msg.message.imageMessage && msg.message.imageMessage.caption) {
+            text = msg.message.imageMessage.caption;
+        } else if (msg.message.videoMessage && msg.message.videoMessage.caption) {
+            text = msg.message.videoMessage.caption;
         }
 
         // Ignora mensagens do bot
