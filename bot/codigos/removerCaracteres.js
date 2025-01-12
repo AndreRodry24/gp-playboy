@@ -11,6 +11,8 @@ export async function removerCaracteres(c, mensagem) {
             "vendo",
             "Vendo",
             "criança",
+            "zoofilia",
+            "necrofilia",
             "crianças",
             "entre",
             "proibidos",
@@ -101,7 +103,6 @@ export async function removerCaracteres(c, mensagem) {
             "chamadas",
             "terceiros",
             "interessados",
-            "Fortune Mouse",
             "Mouse",
             "Fortune",
             "slots",
@@ -187,7 +188,15 @@ export async function removerCaracteres(c, mensagem) {
             "bet",
             "cassino",
             "cotações",
-            "cashback"
+            "cashback",
+            "Packs Disponível",
+            "R$",
+            "Ox",
+            "Tiger",
+            "Habbit",
+            "HERO FILMES",
+            "METGOL",
+            "MINE ISLAND"
         ];
 
         const regrasDoGrupo = [
