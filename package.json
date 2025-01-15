@@ -14,10 +14,13 @@
     "@adiwajshing/baileys": "^3.5.3",
     "@hapi/boom": "^10.0.1",
     "@whiskeysockets/baileys": "^6.7.9",
-    "axios": "^1.7.8",
+    "axios": "^1.7.9",
     "bottleneck": "^2.19.5",
+    "dns": "^0.2.2",
     "qrcode-terminal": "^0.12.0",
     "sharp": "^0.32.6",
+    "tesseract.js": "^6.0.0",
+    "url": "^0.11.4",
     "youtube-search-api": "^1.2.2"
   }
 }

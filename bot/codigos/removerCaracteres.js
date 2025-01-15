@@ -196,7 +196,9 @@ export async function removerCaracteres(c, mensagem) {
             "Habbit",
             "HERO FILMES",
             "METGOL",
-            "MINE ISLAND"
+            "MINE ISLAND",
+            "LIGAÇÃO",
+            "ligação"
         ];
 
         const regrasDoGrupo = [

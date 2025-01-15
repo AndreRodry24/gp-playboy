@@ -1,86 +1,92 @@
-// Função para obter o link de convite do grupo
-const getGroupInviteLink = async (sock, groupId) => {
-    try {
-        // Obtém o código de convite do grupo
-        const inviteCode = await sock.groupInviteCode(groupId);
-
-        // Gera o link de convite com base no código
-        const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
-
-        return inviteLink;
-    } catch (error) {
-        console.error('Erro ao obter o link de convite do grupo:', error);
-        return null;
-    }
-};
-
-// Função principal para tratar links não permitidos
+// Função principal para lidar com links, texto oculto e comandos suspeitos
 export const handleAntiLink = async (sock, msg, groupId) => {
     try {
-        // Expressão regular para capturar URLs
         const linkPattern = /((https?:\/\/|www\.|wa\.me\/\d+)[^\s]+)/img;
+        const commandPattern = /[!&@#$%.,*~\-][\w]+/g; // Detecta comandos começando com caracteres especiais e seguidos por palavras
+        const allowedCommands = ['#adv', '#ban', '#regras', '#todos']; // Comandos permitidos
+        const textLimit = 950; // Limite de caracteres permitido
 
         let text = '';
+        let extractedText = ''; // Texto extraído de mídia (se aplicável)
+        let fullText = ''; // Texto total combinado
 
-        // Verifica o tipo de mensagem e obtém o texto ou legenda
+        // Verifica o tipo de mensagem e coleta o texto
         if (msg.message.conversation) {
             text = msg.message.conversation;
         } else if (msg.message.extendedTextMessage) {
             text = msg.message.extendedTextMessage.text;
-        } else if (msg.message.imageMessage && msg.message.imageMessage.caption) {
-            text = msg.message.imageMessage.caption;
-        } else if (msg.message.videoMessage && msg.message.videoMessage.caption) {
-            text = msg.message.videoMessage.caption;
+        } else if (msg.message.imageMessage || msg.message.videoMessage || msg.message.audioMessage || msg.message.documentMessage) {
+            // Verifica legenda, se houver
+            if (msg.message.imageMessage?.caption) {
+                text = msg.message.imageMessage.caption;
+            } else if (msg.message.videoMessage?.caption) {
+                text = msg.message.videoMessage.caption;
+            }
+
+            // Se for uma mídia, tenta extrair texto oculto
+            const mediaUrl = msg.message.imageMessage?.url || 
+                             msg.message.videoMessage?.url || 
+                             msg.message.documentMessage?.url || 
+                             msg.message.audioMessage?.url;
+            if (mediaUrl) {
+                extractedText = await extractTextFromImage(mediaUrl);
+            }
         }
 
-        // Ignora mensagens do bot
+        // Ignora mensagens enviadas pelo bot
         if (msg.key.fromMe) return;
 
-        console.log('Texto da mensagem recebida:', text);
+        // Combina texto visível e oculto
+        fullText = `${text} ${extractedText}`.trim();
 
-        // Obtém o link de convite do grupo
-        const groupInviteLink = await getGroupInviteLink(sock, groupId);
+        console.log('Texto combinado da mensagem:', fullText);
 
-        if (!groupInviteLink) {
-            console.error('Não foi possível obter o link de convite do grupo.');
-            return;
+        // Verifica comandos suspeitos
+        const words = fullText.split(/\s+/); // Divide o texto em palavras
+        for (let word of words) {
+            if (commandPattern.test(word) && !allowedCommands.includes(word)) {
+                console.log('Removendo mensagem com comando suspeito:', word);
+                await sock.sendMessage(groupId, { delete: msg.key });
+                const userId = msg.key.participant;
+                console.log('Removendo usuário por envio de comando suspeito:', userId);
+                await sock.groupParticipantsUpdate(groupId, [userId], 'remove');
+                return; // Sai após remover a mensagem e o usuário
+            }
         }
 
-        const normalizedGroupInviteLink = groupInviteLink.replace(/^https?:\/\//, '').toLowerCase();
-
-        // Link específico que não deve ser removido
-        const allowedInviteLink = 'ewlkegcnhjp5axqy34agl'; // Link do grupo permitido, sem 'https://chat.whatsapp.com/'
-
-        // Verifica se a mensagem contém links
-        const links = text.match(linkPattern);
-
+        // Verifica links no texto combinado
+        const links = fullText.match(linkPattern);
         if (links) {
+            const groupInviteLink = await getGroupInviteLink(sock, groupId);
+            if (!groupInviteLink) {
+                console.error('Não foi possível obter o link de convite do grupo.');
+                return;
+            }
+
+            const normalizedGroupInviteLink = groupInviteLink.replace(/^https?:\/\//, '').toLowerCase();
+            const allowedInviteLink = 'ewlkegcnhjp5axqy34agl'; // Exemplo de link permitido
+
             for (let link of links) {
                 const normalizedLink = link.replace(/^https?:\/\//, '').toLowerCase();
-
-                // Verifica se o link é exatamente o link permitido
-                if (normalizedLink === allowedInviteLink) {
-                    console.log('Link permitido encontrado, não será removido:', normalizedLink);
-                    continue; // Não remove a mensagem
-                }
-
-                // Compara o link da mensagem com o link do grupo
-                if (normalizedLink !== normalizedGroupInviteLink && !normalizedLink.includes(normalizedGroupInviteLink)) {
-                    // Apaga a mensagem contendo o link
+                if (normalizedLink !== allowedInviteLink && !normalizedLink.includes(normalizedGroupInviteLink)) {
+                    console.log('Removendo mensagem com link:', normalizedLink);
                     await sock.sendMessage(groupId, { delete: msg.key });
-
-                    console.log('Mensagem contendo link removida:', normalizedLink);
-
-                    // Remove o usuário que postou o link
-                    const userId = msg.key.participant;  // Obtém o ID do usuário que enviou a mensagem
+                    const userId = msg.key.participant;
+                    console.log('Removendo usuário por envio de link:', userId);
                     await sock.groupParticipantsUpdate(groupId, [userId], 'remove');
-
-                    console.log('Usuário removido do grupo:', userId);
-                    break;  // Não precisa continuar verificando outros links na mesma mensagem
+                    return; // Sai após remover a mensagem e o usuário
                 }
             }
-        } else {
-            console.log('Nenhum link detectado na mensagem.');
+        }
+
+        // Verifica se o texto total ultrapassa o limite de caracteres
+        if (fullText.length > textLimit) {
+            console.log('Removendo mensagem com texto acima de 950 caracteres.');
+            await sock.sendMessage(groupId, { delete: msg.key });
+            const userId = msg.key.participant;
+            console.log('Removendo usuário por envio de texto longo:', userId);
+            await sock.groupParticipantsUpdate(groupId, [userId], 'remove');
+            return; // Sai após remover a mensagem e o usuário
         }
     } catch (error) {
         console.error('Erro no handleAntiLink:', error);
